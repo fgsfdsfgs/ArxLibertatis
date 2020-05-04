@@ -38,7 +38,9 @@
 #define ARX_PLATFORM_BSD     100 // Generic BSD system
 #define ARX_PLATFORM_UNIX    101 // Generic UNIX system
 
-#if defined(__linux)
+#if defined(__SWITCH__)
+	#define ARX_PLATFORM ARX_PLATFORM_UNIX
+#elif defined(__linux)
 	#define ARX_PLATFORM ARX_PLATFORM_LINUX
 #elif defined(_WIN32)
 	#define ARX_PLATFORM ARX_PLATFORM_WIN32

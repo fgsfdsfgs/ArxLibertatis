@@ -33,9 +33,13 @@ if(BUILD_ALL OR DEVELOPER)
 	set(default_BUILD_TESTS ON)
 endif()
 suboption(BUILD_TESTS "Build tests" BOOL ${default_BUILD_TESTS})
-option(BUILD_TOOLS "Build tools" ON)
+set(def_BUILD_TOOLS ON)
+if(CMAKE_CROSSCOMPILING)
+	set(def_BUILD_TOOLS OFF)
+endif()
+option(BUILD_TOOLS "Build tools" ${def_BUILD_TOOLS})
 set(def_BUILD_CRASHHANDLER ON)
-if(MACOS)
+if(MACOS OR SWITCH_LIBNX)
 	set(def_BUILD_CRASHHANDLER OFF)
 elseif(WIN32 AND NOT MSVC)
 	set(def_BUILD_CRASHHANDLER OFF)
@@ -65,7 +69,7 @@ option(USE_OPENGL "Build the OpenGL renderer backend" ON)
 option(USE_WINHTTP "Use the native WinHTTP API instead of CURL on Windows" ON)
 option(USE_NATIVE_FS "Use the native filesystem backend directly instead of boost" ON)
 set(default_USE_X11 OFF)
-if(NOT WIN32 AND NOT MACOS)
+if(NOT WIN32 AND NOT MACOS AND NOT SWITCH_LIBNX)
 	set(default_USE_X11 ON)
 endif()
 suboption(USE_X11 "Check for X11 support in used libraries" BOOL ${default_USE_X11})
@@ -74,7 +78,7 @@ option(USE_WAYLAND "Check for Wayland support in used libraries" OFF)
 # Alternative dependencies
 set(WITH_SDL CACHE STRING "The SDL version to use: 1 or 2 or empty (use any)")
 set(WITH_QT CACHE STRING "The Qt version to use: 4 or 5 or empty (use any)")
-set(WITH_OPENGL CACHE STRING "The OpenGL wrangler to use: epoxy or glew or empty (use any)")
+set(WITH_OPENGL CACHE STRING "The OpenGL wrangler to use: epoxy or glew or glad or empty (use any)")
 
 # Build types
 set(default_UNITY_BUILD ON)
@@ -114,7 +118,7 @@ set(ARX_DEBUG_GL ${DEBUG_GL})
 
 # Static libs
 set(default_USE_STATIC_LIBS OFF)
-if(WIN32)
+if(WIN32 OR SWITCH_LIBNX)
 	set(default_USE_STATIC_LIBS ON)
 endif()
 option(USE_STATIC_LIBS          "Statically link libraries" ${default_USE_STATIC_LIBS})
@@ -219,6 +223,8 @@ elseif(MACOS)
 	set(DATA_DIR_PREFIXES "/Applications"                 CACHE STRING "Data dir paths")
 	set(USER_DIR          "ArxLibertatis"                 CACHE STRING "User dir names")
 	set(USER_DIR_PREFIXES "$HOME/Library/Application Support" CACHE STRING "User dir paths")
+elseif(SWITCH_LIBNX)
+	set(USER_DIR          "user"                          CACHE STRING "User dir names")
 else()
 	set(DATA_DIR
 		"games/arx:arx"
@@ -446,6 +452,11 @@ if(USE_OPENGL)
 			set(ARX_HAVE_GL_STATIC ${GLEW_USE_STATIC_LIBS})
 		endif()
 	endif()
+	if(NOT ARX_HAVE_OPENGL AND (WITH_OPENGL STREQUAL "" OR WITH_OPENGL STREQUAL "glad"))
+		set(ARX_HAVE_GLAD 1)
+		set(ARX_HAVE_OPENGL 1)
+		set(ARX_HAVE_GL_STATIC 1)
+	endif()
 endif()
 
 # OpenAL
@@ -665,7 +676,7 @@ if(MSVC)
 	
 else(MSVC)
 	
-	if(USE_STATIC_LIBS)
+	if(USE_STATIC_LIBS AND NOT SWITCH_LIBNX)
 		add_ldflag("-static-libstdc++")
 		add_ldflag("-static-libgcc")
 	endif()
@@ -754,8 +765,10 @@ else(MSVC)
 	check_symbol_exists(getrusage "sys/resource.h" ARX_HAVE_GETRUSAGE)
 	
 	check_symbol_exists(getexecname "stdlib.h" ARX_HAVE_GETEXECNAME)
-	check_symbol_exists(setenv "stdlib.h" ARX_HAVE_SETENV)
-	check_symbol_exists(unsetenv "stdlib.h" ARX_HAVE_UNSETENV)
+	if(NOT SWITCH_LIBNX) # exists in the header but not in libc
+		check_symbol_exists(setenv "stdlib.h" ARX_HAVE_SETENV)
+		check_symbol_exists(unsetenv "stdlib.h" ARX_HAVE_UNSETENV)
+	endif()
 	
 	check_symbol_exists(__get_cpuid "cpuid.h" ARX_HAVE_GET_CPUID)
 	if(ARX_HAVE_GET_CPUID)
@@ -784,12 +797,13 @@ else(MSVC)
 	endif()
 	
 	check_symbol_exists(open "fcntl.h" ARX_HAVE_OPEN)
-	check_symbol_exists(O_CLOEXEC "fcntl.h" ARX_HAVE_O_CLOEXEC)
 	check_symbol_exists(fcntl "fcntl.h" ARX_HAVE_FCNTL)
 	
 	check_symbol_exists(chdir "unistd.h" ARX_HAVE_CHDIR)
-	check_symbol_exists(fork "unistd.h" ARX_HAVE_FORK)
-	check_symbol_exists(readlink "unistd.h" ARX_HAVE_READLINK)
+	if(NOT SWITCH_LIBNX) # exists in the header but not in libc
+		check_symbol_exists(fork "unistd.h" ARX_HAVE_FORK)
+		check_symbol_exists(O_CLOEXEC "fcntl.h" ARX_HAVE_O_CLOEXEC)
+	endif()
 	check_symbol_exists(dup2 "unistd.h" ARX_HAVE_DUP2)
 	check_symbol_exists(pipe2 "unistd.h" ARX_HAVE_PIPE2)
 	if(NOT ARX_HAVE_PIPE2)
@@ -797,40 +811,37 @@ else(MSVC)
 	endif()
 	check_symbol_exists(read "unistd.h" ARX_HAVE_READ)
 	check_symbol_exists(close "unistd.h" ARX_HAVE_CLOSE)
-	check_symbol_exists(setpgid "unistd.h" ARX_HAVE_SETPGID)
-	check_symbol_exists(execvp "unistd.h" ARX_HAVE_EXECVP)
-	check_symbol_exists(posix_spawnp "spawn.h" ARX_HAVE_POSIX_SPAWNP)
-	if(ARX_HAVE_POSIX_SPAWNP)
-		check_symbol_exists(environ "unistd.h" ARX_HAVE_UNISTD_ENVIRON)
-	endif()
-	if(NOT WIN32)
-		check_symbol_exists(isatty "unistd.h" ARX_HAVE_ISATTY)
-	endif()
 	
-	check_symbol_exists(waitpid "sys/wait.h" ARX_HAVE_WAITPID)
-	
-	check_symbol_exists(sched_getscheduler "sched.h" ARX_HAVE_SCHED_GETSCHEDULER)
-	
-	check_symbol_exists(kill "signal.h" ARX_HAVE_KILL)
-	
-	check_symbol_exists(backtrace "execinfo.h" ARX_HAVE_BACKTRACE)
+	if(NOT SWITCH_LIBNX) # exists in the header but not in libc
+		check_symbol_exists(setpgid "unistd.h" ARX_HAVE_SETPGID)
+		check_symbol_exists(execvp "unistd.h" ARX_HAVE_EXECVP)
+		check_symbol_exists(posix_spawnp "spawn.h" ARX_HAVE_POSIX_SPAWNP)
+		if(ARX_HAVE_POSIX_SPAWNP)
+			check_symbol_exists(environ "unistd.h" ARX_HAVE_UNISTD_ENVIRON)
+		endif()
+		if(NOT WIN32)
+			check_symbol_exists(isatty "unistd.h" ARX_HAVE_ISATTY)
+		endif()
+		check_symbol_exists(waitpid "sys/wait.h" ARX_HAVE_WAITPID)
+		check_symbol_exists(sched_getscheduler "sched.h" ARX_HAVE_SCHED_GETSCHEDULER)
+		check_symbol_exists(kill "signal.h" ARX_HAVE_KILL)
+		check_symbol_exists(backtrace "execinfo.h" ARX_HAVE_BACKTRACE)
+	endif(NOT SWITCH_LIBNX)
 	
 	check_include_file("sys/types.h" ARX_HAVE_SYS_TYPES_H)
 	if(CMAKE_USE_PTHREADS_INIT AND ARX_HAVE_SYS_TYPES_H)
 		set(ARX_HAVE_PTHREADS 1)
 	endif()
 	
-	check_symbol_exists(getpid "unistd.h" ARX_HAVE_GETPID)
-	check_symbol_exists(getgid "unistd.h" ARX_HAVE_GETGID)
-	check_symbol_exists(getuid "unistd.h" ARX_HAVE_GETUID)
-	
-	check_symbol_exists(sysconf "unistd.h" ARX_HAVE_SYSCONF)
-	
-	check_symbol_exists(confstr "unistd.h" ARX_HAVE_CONFSTR)
-	
-	check_symbol_exists(sigaction "signal.h" ARX_HAVE_SIGACTION)
-	
-	check_symbol_exists(setrlimit "sys/resource.h" ARX_HAVE_SETRLIMIT)
+	if(NOT SWITCH_LIBNX) # exists in the header but not in libc
+		check_symbol_exists(getpid "unistd.h" ARX_HAVE_GETPID)
+		check_symbol_exists(getgid "unistd.h" ARX_HAVE_GETGID)
+		check_symbol_exists(getuid "unistd.h" ARX_HAVE_GETUID)
+		check_symbol_exists(sysconf "unistd.h" ARX_HAVE_SYSCONF)
+		check_symbol_exists(confstr "unistd.h" ARX_HAVE_CONFSTR)
+		check_symbol_exists(sigaction "signal.h" ARX_HAVE_SIGACTION)
+		check_symbol_exists(setrlimit "sys/resource.h" ARX_HAVE_SETRLIMIT)
+	endif()
 	
 	if(CMAKE_SYSTEM_NAME MATCHES "BSD")
 		check_symbol_exists(sysctl "sys/types.h;sys/sysctl.h" ARX_HAVE_SYSCTL)
@@ -874,11 +885,13 @@ else(MSVC)
 		check_include_file("sys/errno.h" ARX_HAVE_SYS_ERRNO_H)
 		check_include_file("dirent.h" ARX_HAVE_DIRENT_H)
 		
-		check_symbol_exists(dirfd "dirent.h" ARX_HAVE_DIRFD)
-		if(ARX_HAVE_DIRFD)
-			check_symbol_exists(fstatat "sys/stat.h" ARX_HAVE_FSTATAT)
-			if(ARX_HAVE_FSTATAT)
-				check_symbol_exists(AT_SYMLINK_NOFOLLOW "fcntl.h" ARX_HAVE_AT_SYMLINK_NOFOLLOW)
+		if(NOT SWITCH_LIBNX) # exists in the header but not in libc
+			check_symbol_exists(dirfd "dirent.h" ARX_HAVE_DIRFD)
+			if(ARX_HAVE_DIRFD)
+				check_symbol_exists(fstatat "sys/stat.h" ARX_HAVE_FSTATAT)
+				if(ARX_HAVE_FSTATAT)
+					check_symbol_exists(AT_SYMLINK_NOFOLLOW "fcntl.h" ARX_HAVE_AT_SYMLINK_NOFOLLOW)
+				endif()
 			endif()
 		endif()
 		
@@ -897,7 +910,7 @@ else(MSVC)
 		endif()
 		
 		check_symbol_exists(_PC_CASE_SENSITIVE "unistd.h" ARX_HAVE_PC_CASE_SENSITIVE)
-		if(ARX_HAVE_PC_NAME_MAX OR ARX_HAVE_PC_CASE_SENSITIVE)
+		if((ARX_HAVE_PC_NAME_MAX OR ARX_HAVE_PC_CASE_SENSITIVE) AND NOT SWITCH_LIBNX)
 			check_symbol_exists(pathconf "unistd.h" ARX_HAVE_PATHCONF)
 		endif()
 		
@@ -1073,6 +1086,9 @@ set(GRAPHICS_OPENGL_SOURCES
 	src/graphics/opengl/GLVertexBuffer.cpp
 	src/graphics/opengl/OpenGLRenderer.cpp
 )
+if(ARX_HAVE_GLAD)
+	list(APPEND GRAPHICS_OPENGL_SOURCES src/graphics/opengl/glad/glad.c)
+endif()
 
 set(GUI_SOURCES
 	src/gui/CharacterCreation.cpp
@@ -1407,6 +1423,12 @@ if(LIBRT_LIBRARY AND (ARX_HAVE_CLOCK_GETTIME OR ARX_HAVE_CRASHHANDLER_POSIX))
 	list(APPEND BASE_LIBRARIES ${LIBRT_LIBRARY})
 endif()
 
+if (SWITCH_LIBNX)
+	# Append system libraries and defs
+	list(APPEND BASE_LIBRARIES EGL glapi drm_nouveau nx)
+	add_definitions(-D__SWITCH__=1)
+endif()
+
 list(APPEND ARX_LIBRARIES ${BASE_LIBRARIES})
 
 if(NOT MSVC)
@@ -1446,7 +1468,9 @@ set(ARX_SOURCES
 )
 
 # Using include() for now as add_subdirectory causes problems with uses in qrc files
-include(data/CMakeLists.txt)
+if(NOT CMAKE_CROSSCOMPILING)
+	include(data/CMakeLists.txt)
+endif()
 
 # Set the icon for the Windows executable by adding this resource file to the sources
 if(WIN32)
@@ -1910,7 +1934,7 @@ if(INSTALL_SCRIPTS AND NOT WIN32)
 endif()
 
 # Install icon and desktop entry
-if(NOT WIN32 AND NOT MACOS)
+if(NOT WIN32 AND NOT MACOS AND NOT SWITCH_LIBNX)
 	
 	find_program(DESKTOP_FILE_VALIDATE desktop-file-validate)
 	
@@ -1969,6 +1993,7 @@ print_configuration("Renderer"
 	ARX_HAVE_EPOXY "OpenGL (libepoxy)"
 	ARX_HAVE_EPOXY "OpenGL ES (libepoxy)"
 	ARX_HAVE_GLEW  "OpenGL (GLEW)"
+	ARX_HAVE_GLAD  "OpenGL (GLAD)"
 )
 print_configuration("Audio features"
 	ARX_HAVE_OPENAL_EFX  "EFX"

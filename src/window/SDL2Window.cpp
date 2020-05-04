@@ -303,6 +303,7 @@ int SDL2Window::createWindowAndGLContext(const char * profile) {
 			}
 		}
 		
+		#if !ARX_HAVE_GLAD // FIXME: shouldn't really call gl* functions when GL isn't even loaded yet
 		// Verify that we actually got an accelerated context
 		(void)glGetError(); // clear error flags
 		GLint texunits = 0;
@@ -316,6 +317,7 @@ int SDL2Window::createWindowAndGLContext(const char * profile) {
 			}
 			continue;
 		}
+		#endif
 		
 		return std::max(msaa, 1);
 	}
@@ -363,7 +365,9 @@ bool SDL2Window::initialize() {
 					SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
 					SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 					SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+					#ifndef __SWITCH__
 					SDL_GL_SetAttribute(SDL_GL_CONTEXT_NO_ERROR, 1); // Requires OpenGL 2.0
+					#endif
 					samples = createWindowAndGLContext("Desktop OpenGL");
 				}
 				#endif

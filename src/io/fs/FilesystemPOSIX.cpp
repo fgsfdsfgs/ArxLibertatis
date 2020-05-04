@@ -71,7 +71,11 @@ FileType get_link_type(const path & p) {
 	}
 	
 	struct stat buf;
+	#if defined(__SWITCH__)
+	if(stat(p.string().c_str(), &buf)) {
+	#else
 	if(lstat(p.string().c_str(), &buf)) {
+	#endif
 		return DoesNotExist;
 	}
 	
@@ -234,7 +238,7 @@ bool directory_iterator::read_info() {
 	#if ARX_HAVE_DIRFD && ARX_HAVE_FSTATAT
 	m_info.st_nlink = !fstatat(dirfd(m_handle), m_entry->d_name, &m_info, 0);
 	#else
-	m_info.st_nlink = !stat(m_path / m_entry->d_name, &m_info);
+	m_info.st_nlink = !stat((m_path / m_entry->d_name).string().c_str(), &m_info);
 	#endif
 	
 	return m_info.st_nlink;
@@ -371,8 +375,10 @@ FileType directory_iterator::link_type() {
 	struct stat buf;
 	#if ARX_HAVE_DIRFD && ARX_HAVE_FSTATAT && ARX_HAVE_AT_SYMLINK_NOFOLLOW
 	int ret = fstatat(dirfd(m_handle), m_entry->d_name, &buf, AT_SYMLINK_NOFOLLOW);
+	#elif defined(__SWITCH__)
+	int ret = stat((m_path / m_entry->d_name).string().c_str(), &buf);
 	#else
-	int ret = lstat(m_path / m_entry->d_name, &buf);
+	int ret = lstat((m_path / m_entry->d_name).string().c_str(), &buf);
 	#endif
 	if(ret) {
 		return DoesNotExist;

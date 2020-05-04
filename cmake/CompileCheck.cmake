@@ -89,7 +89,10 @@ function(check_compile RESULT FILE FLAG TYPE)
 		set(has_warning 0)
 		foreach(expr IN LISTS fail_regexps)
 			if("${ERRORLOG}" MATCHES "${expr}")
-				set(has_warning 1)
+				# shitty workaround for the linker warning cmake gets on switch
+				if(NOT CMAKE_CROSSCOMPILING OR NOT ("${ERRORLOG}" MATCHES "warning: cannot find entry"))
+					set(has_warning 1)
+				endif()
 			endif()
 		endforeach()
 		

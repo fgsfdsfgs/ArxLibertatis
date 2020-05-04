@@ -43,10 +43,9 @@
 #endif
 
 #include "platform/Platform.h"
+#include "io/fs/FilePath.h"
 
 namespace fs {
-
-class path;
 
 enum FileType {
 	DoesNotExist,

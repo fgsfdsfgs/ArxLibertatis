@@ -46,6 +46,16 @@
 #define ARX_HAVE_GLES_VER(x, y) (false)
 #define ARX_HAVE_GLES_EXT(name) (false)
 
+#elif ARX_HAVE_GLAD
+
+#include <EGL/egl.h>
+#include "glad/glad.h"
+
+#define ARX_HAVE_GL_VER(x, y) ((GLAD_GL_VERSION_ ## x ## _ ## y) != 0)
+#define ARX_HAVE_GL_EXT(name) ((GLAD_GL_ ## name) != 0)
+#define ARX_HAVE_GLES_VER(x, y) (false)
+#define ARX_HAVE_GLES_EXT(name) (false)
+
 #else
 #error "OpenGL renderer not supported: need ARX_HAVE_EPOXY or ARX_HAVE_GLEW"
 #endif

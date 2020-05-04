@@ -94,7 +94,7 @@ static process_handle run(const char * exe, const char * const args[], int outfd
 	
 	char ** argv = const_cast<char **>(args);
 	
-	#if ARX_HAVE_OPEN
+	#if ARX_HAVE_OPEN && !defined(__SWITCH__)
 	static int dev_null = open("/dev/null", O_RDWR | O_CLOEXEC);
 	#if !ARX_HAVE_O_CLOEXEC && ARX_HAVE_FCNTL
 	fcntl(dev_null, F_SETFD, FD_CLOEXEC);
