@@ -302,16 +302,16 @@ static size_t stereoToMono(char * data, size_t size) {
 
 aalError OpenALSource::fillBuffer(size_t i, size_t size) {
 	
+	static char data[StreamLimitBytes * NBUFFERS];
+	
 	arx_assert(m_loadCount > 0);
 	
-	size_t left = std::min(size, m_sample->getLength() - m_written);
+	size_t left = std::min(std::min(size, m_sample->getLength() - m_written), StreamLimitBytes * NBUFFERS);
 	if(m_loadCount == 1) {
 		size = left;
 	}
 	
 	TraceAL("filling buffer " << m_buffers[i] << " with " << size << " bytes");
-	
-	char data[StreamLimitBytes * NBUFFERS];
 	
 	arx_assert(size <= sizeof(data));
 	
