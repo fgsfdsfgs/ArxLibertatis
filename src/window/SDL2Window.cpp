@@ -50,7 +50,11 @@
 #include "gui/Credits.h"
 #include "graphics/opengl/GLDebug.h"
 #include "graphics/opengl/OpenGLRenderer.h"
+#ifdef __SWITCH__
+#include "input/SwitchInputBackend.h"
+#else
 #include "input/SDL2InputBackend.h"
+#endif
 #include "io/log/Logger.h"
 #include "math/Rectangle.h"
 #include "platform/CrashHandler.h"
@@ -181,6 +185,15 @@ bool SDL2Window::initializeFramework() {
 		LogError << "Failed to initialize SDL: " << SDL_GetError();
 		return false;
 	}
+	
+	#ifdef __SWITCH__
+	// have to do it right here because it has to be initialized before you create a window
+	if(SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) < 0) {
+		LogError << "Failed to initialize gamecontroller subsystem: " << SDL_GetError();
+		SDL_Quit();
+		return false;
+	}
+	#endif
 	
 	SDL_version ver;
 	SDL_GetVersion(&ver);

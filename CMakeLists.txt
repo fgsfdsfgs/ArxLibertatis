@@ -681,6 +681,10 @@ else(MSVC)
 		add_ldflag("-static-libgcc")
 	endif()
 	
+	if(SWITCH_LIBNX)
+		add_cxxflag("-I$(DEVKITPRO)/libnx/include")
+	endif()
+	
 	# Don't expose internal symbols to the outside world by default
 	add_cxxflag("-fvisibility=hidden")
 	add_cxxflag("-fvisibility-inlines-hidden")
@@ -803,16 +807,11 @@ else(MSVC)
 	if(NOT SWITCH_LIBNX) # exists in the header but not in libc
 		check_symbol_exists(fork "unistd.h" ARX_HAVE_FORK)
 		check_symbol_exists(O_CLOEXEC "fcntl.h" ARX_HAVE_O_CLOEXEC)
-	endif()
-	check_symbol_exists(dup2 "unistd.h" ARX_HAVE_DUP2)
-	check_symbol_exists(pipe2 "unistd.h" ARX_HAVE_PIPE2)
-	if(NOT ARX_HAVE_PIPE2)
-		check_symbol_exists(pipe "unistd.h" ARX_HAVE_PIPE)
-	endif()
-	check_symbol_exists(read "unistd.h" ARX_HAVE_READ)
-	check_symbol_exists(close "unistd.h" ARX_HAVE_CLOSE)
-	
-	if(NOT SWITCH_LIBNX) # exists in the header but not in libc
+		check_symbol_exists(dup2 "unistd.h" ARX_HAVE_DUP2)
+		check_symbol_exists(pipe2 "unistd.h" ARX_HAVE_PIPE2)
+		if(NOT ARX_HAVE_PIPE2)
+			check_symbol_exists(pipe "unistd.h" ARX_HAVE_PIPE)
+		endif()
 		check_symbol_exists(setpgid "unistd.h" ARX_HAVE_SETPGID)
 		check_symbol_exists(execvp "unistd.h" ARX_HAVE_EXECVP)
 		check_symbol_exists(posix_spawnp "spawn.h" ARX_HAVE_POSIX_SPAWNP)
@@ -826,14 +825,6 @@ else(MSVC)
 		check_symbol_exists(sched_getscheduler "sched.h" ARX_HAVE_SCHED_GETSCHEDULER)
 		check_symbol_exists(kill "signal.h" ARX_HAVE_KILL)
 		check_symbol_exists(backtrace "execinfo.h" ARX_HAVE_BACKTRACE)
-	endif(NOT SWITCH_LIBNX)
-	
-	check_include_file("sys/types.h" ARX_HAVE_SYS_TYPES_H)
-	if(CMAKE_USE_PTHREADS_INIT AND ARX_HAVE_SYS_TYPES_H)
-		set(ARX_HAVE_PTHREADS 1)
-	endif()
-	
-	if(NOT SWITCH_LIBNX) # exists in the header but not in libc
 		check_symbol_exists(getpid "unistd.h" ARX_HAVE_GETPID)
 		check_symbol_exists(getgid "unistd.h" ARX_HAVE_GETGID)
 		check_symbol_exists(getuid "unistd.h" ARX_HAVE_GETUID)
@@ -842,6 +833,13 @@ else(MSVC)
 		check_symbol_exists(sigaction "signal.h" ARX_HAVE_SIGACTION)
 		check_symbol_exists(setrlimit "sys/resource.h" ARX_HAVE_SETRLIMIT)
 	endif()
+	
+	check_include_file("sys/types.h" ARX_HAVE_SYS_TYPES_H)
+	if(CMAKE_USE_PTHREADS_INIT AND ARX_HAVE_SYS_TYPES_H)
+		set(ARX_HAVE_PTHREADS 1)
+	endif()
+	check_symbol_exists(read "unistd.h" ARX_HAVE_READ)
+	check_symbol_exists(close "unistd.h" ARX_HAVE_CLOSE)
 	
 	if(CMAKE_SYSTEM_NAME MATCHES "BSD")
 		check_symbol_exists(sysctl "sys/types.h;sys/sysctl.h" ARX_HAVE_SYSCTL)
@@ -1140,7 +1138,11 @@ set(INPUT_SOURCES
 	src/input/TextInput.cpp
 )
 set(INPUT_SDL1_SOURCES src/input/SDL1InputBackend.cpp)
-set(INPUT_SDL2_SOURCES src/input/SDL2InputBackend.cpp)
+if(SWITCH_LIBNX)
+	set(INPUT_SDL2_SOURCES src/input/SwitchInputBackend.cpp)
+else()
+	set(INPUT_SDL2_SOURCES src/input/SDL2InputBackend.cpp)
+endif()
 
 set(IO_SOURCES
 	src/io/IniReader.cpp
@@ -1964,6 +1966,16 @@ if(INSTALL_SCRIPTS AND NOT WIN32)
 	        OPTIONAL)
 endif()
 
+# Build NRO if building for Switch
+if( SWITCH_LIBNX )
+	add_custom_command(
+		TARGET arx POST_BUILD
+		COMMAND nacptool --create "Arx Libertatis" \"\" \"\" "arx.nacp"
+		COMMAND aarch64-none-elf-strip -o ${CMAKE_BINARY_DIR}/arx_stripped ${CMAKE_BINARY_DIR}/arx
+		COMMAND elf2nro ${CMAKE_BINARY_DIR}/arx_stripped ${CMAKE_BINARY_DIR}/arx.nro
+		                --icon=${CMAKE_SOURCE_DIR}/data/icons/arx-libertatis-switch.jpg --nacp=arx.nacp
+	)
+endif()
 
 # Print a configuration summary
 
